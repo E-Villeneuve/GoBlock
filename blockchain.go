@@ -1,7 +1,9 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
 	"github.com/boltdb/bolt"
 )
@@ -19,7 +21,7 @@ type BlockchainIterator struct {
 	db          *bolt.DB
 }
 
-func (bc *Blockchain) AddBlock(transactions []*Transaction) {
+func (bc *Blockchain) MineBlock(transactions []*Transaction) {
 	var lastHash []byte
 
 	err := bc.db.View(func(tx *bolt.Tx) error { // reads last block hash from the db
@@ -50,6 +52,7 @@ func (bc *Blockchain) AddBlock(transactions []*Transaction) {
 	})
 }
 
+// Creates new blockchain, establishes a genesis block
 func CreateBlockchain(address string) *Blockchain {
 	var tip []byte
 	db, err := bolt.Open(dbFile, 0600, nil) // Opens database file, creates it if it doesn't exist
@@ -85,6 +88,36 @@ func CreateBlockchain(address string) *Blockchain {
 	bc := Blockchain{tip, db}
 
 	return &bc
+}
+
+// Opens an existing blockchain
+func OpenBlockchain(address string) *Blockchain {
+	if _, err := os.Stat(dbFile); os.IsNotExist(err) { // Checks if db actually exists before attempting to open it
+		fmt.Println("Please create blockchain before attempting to open it.")
+		os.Exit(1)
+	}
+
+	var tip []byte
+	db, err := bolt.Open(dbFile, 0600, nil)
+	if err != nil {
+		log.Panic(err)
+	}
+
+	err = db.Update(func(tx *bolt.Tx) error {
+		b := tx.Bucket([]byte("blocks"))
+		tip = b.Get([]byte("1"))
+
+		return nil
+	})
+
+	if err != nil {
+		log.Panic(err)
+	}
+
+	bc := Blockchain{tip, db}
+
+	return &bc
+
 }
 
 func (bc *Blockchain) Iterator() *BlockchainIterator {
